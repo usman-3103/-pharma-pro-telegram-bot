@@ -111,18 +111,28 @@ async def receive_location(
     context.user_data["location"] = update.message.text.strip()
 
     user = update.effective_user
-    username = f"@{user.username}" if user.username else "не указан"
 
-    application_text = (
-        "📩 НОВАЯ ЗАЯВКА PHARMA.PRO\n\n"
-        f"👤 Клиент: {user.full_name}\n"
-        f"🔗 Username: {username}\n"
-        f"🆔 Telegram ID: {user.id}\n\n"
-        f"💊 Препарат: {context.user_data['medicine']}\n"
-        f"💉 Дозировка: {context.user_data['dosage']}\n"
-        f"📦 Количество: {context.user_data['quantity']}\n"
-        f"🌍 Страна и город: {context.user_data['location']}"
-    )
+username = f"@{user.username}" if user.username else "не указан"
+
+if user.username:
+    profile_link = f"https://t.me/{user.username}"
+else:
+    profile_link = f"tg://user?id={user.id}"
+
+source = context.user_data.get("source", "Telegram-бот")
+
+application_text = (
+    "📩 НОВЫЙ ЗАПРОС PHARMA.PRO\n\n"
+    f"👤 Имя: {user.full_name}\n"
+    f"🔗 Telegram: {username}\n"
+    f"👁 Профиль: {profile_link}\n"
+    f"🆔 Telegram ID: {user.id}\n"
+    f"📍 Источник: {source}\n\n"
+    f"💊 Препарат: {context.user_data['medicine']}\n"
+    f"💉 Дозировка: {context.user_data['dosage']}\n"
+    f"📦 Количество: {context.user_data['quantity']}\n"
+    f"🌍 Страна и город: {context.user_data['location']}"
+)
 
     # Отправляем заявку владельцу бота
     await context.bot.send_message(
