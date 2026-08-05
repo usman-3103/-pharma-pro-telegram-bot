@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import os
 import threading
 from html import escape
@@ -471,6 +472,9 @@ async def error_handler(
 
 
 def main():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     if not TOKEN:
         raise ValueError(
             "Не найдена переменная BOT_TOKEN. "
