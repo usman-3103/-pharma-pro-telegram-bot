@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: pharma-pro-telegram-bot
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: python main.py
+    healthCheckPath: /
+    envVars:
+      - key: BOT_TOKEN
+        sync: false
+      - key: ADMIN_CHAT_ID
+        value: "119207490"
