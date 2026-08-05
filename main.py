@@ -1,4 +1,5 @@
 import logging
+import asyncio
 import threading
 
 from telegram import Update
@@ -67,6 +68,9 @@ def build_request_conversation():
 
 
 def main():
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+
     threading.Thread(target=run_health_server, daemon=True).start()
     app = Application.builder().token(BOT_TOKEN).build()
 
