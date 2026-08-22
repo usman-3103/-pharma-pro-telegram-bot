@@ -8,13 +8,14 @@ from telegram.ext import Application, CommandHandler, ConversationHandler, Messa
 from config import BOT_TOKEN
 from handlers.common import (
     cancel, contact_operator, help_command, how_it_works,
-    return_to_main, show_search_menu, start, start_and_end, unknown_message,
+    return_to_main, show_search_menu, start, start_and_end, unknown_in_request, unknown_message,
 )
 from handlers.requests import (
     CONFIRM, FLEXIBLE_CONTENT, LOCATION, SINGLE_DOSAGE, SINGLE_NAME, SINGLE_QUANTITY,
     begin_analog, begin_list, begin_photo_or_list, begin_single,
-    receive_flexible_content, receive_location, receive_single_dosage,
-    receive_single_name, receive_single_quantity, restart_request, send_request,
+    receive_flexible_content, receive_location, receive_more_attachment,
+    receive_single_dosage, receive_single_name, receive_single_quantity,
+    restart_request, send_request, wrong_single_name_type,
 )
 from health import run_health_server
 
@@ -34,6 +35,25 @@ async def error_handler(update, context):
 
 def build_request_conversation():
     cancel_button = filters.Regex(r"^❌ Отменить запрос$")
+    main_action = filters.Regex(
+        r"^(🔍 Найти препарат|📷 Отправить рецепт или список|ℹ️ Как это работает|"
+        r"💬 Связаться с оператором|↩️ Вернуться в меню|💊 Один препарат|"
+        r"📋 Список препаратов|🔄 Подобрать турецкий аналог)$"
+    )
+    normal_text = filters.TEXT & ~filters.COMMAND & ~cancel_button & ~main_action
+
+    fallbacks = [
+        CommandHandler("cancel", cancel),
+        CommandHandler("start", start_and_end),
+        MessageHandler(cancel_button, cancel),
+        MessageHandler(filters.Regex(r"^💬 Связаться с оператором$"), contact_operator),
+        MessageHandler(filters.Regex(r"^🔍 Найти препарат$"), show_search_menu),
+        MessageHandler(filters.Regex(r"^↩️ Вернуться в меню$"), return_to_main),
+        MessageHandler(filters.Regex(r"^ℹ️ Как это работает$"), how_it_works),
+        CommandHandler("help", help_command),
+        MessageHandler(filters.ALL, unknown_in_request),
+    ]
+
     return ConversationHandler(
         entry_points=[
             MessageHandler(filters.Regex(r"^💊 Один препарат$"), begin_single),
@@ -42,27 +62,28 @@ def build_request_conversation():
             MessageHandler(filters.Regex(r"^📷 Отправить рецепт или список$"), begin_photo_or_list),
         ],
         states={
-            SINGLE_NAME: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~cancel_button, receive_single_name)],
-            SINGLE_DOSAGE: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~cancel_button, receive_single_dosage)],
-            SINGLE_QUANTITY: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~cancel_button, receive_single_quantity)],
+            SINGLE_NAME: [
+                MessageHandler(normal_text, receive_single_name),
+                MessageHandler(filters.PHOTO | filters.Document.ALL, wrong_single_name_type),
+            ],
+            SINGLE_DOSAGE: [MessageHandler(normal_text, receive_single_dosage)],
+            SINGLE_QUANTITY: [MessageHandler(normal_text, receive_single_quantity)],
             FLEXIBLE_CONTENT: [
                 MessageHandler(
-                    (filters.TEXT | filters.PHOTO | filters.Document.ALL)
-                    & ~filters.COMMAND & ~cancel_button,
+                    (normal_text | filters.PHOTO | filters.Document.ALL),
                     receive_flexible_content,
                 )
             ],
-            LOCATION: [MessageHandler(filters.TEXT & ~filters.COMMAND & ~cancel_button, receive_location)],
+            LOCATION: [
+                MessageHandler(filters.PHOTO | filters.Document.ALL, receive_more_attachment),
+                MessageHandler(normal_text, receive_location),
+            ],
             CONFIRM: [
                 MessageHandler(filters.Regex(r"^✅ Отправить запрос$"), send_request),
                 MessageHandler(filters.Regex(r"^✏️ Заполнить заново$"), restart_request),
             ],
         },
-        fallbacks=[
-            CommandHandler("cancel", cancel),
-            CommandHandler("start", start_and_end),
-            MessageHandler(cancel_button, cancel),
-        ],
+        fallbacks=fallbacks,
         allow_reentry=True,
     )
 

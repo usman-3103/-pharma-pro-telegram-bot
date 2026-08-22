@@ -59,6 +59,11 @@ def user_details_html(update: Update) -> str:
     )
 
 
+def _numbered_lines(value: str) -> str:
+    items = [line.strip() for line in str(value).splitlines() if line.strip()]
+    return "\n".join(f"{i}. {item}" for i, item in enumerate(items, 1))
+
+
 def confirmation_text(context: ContextTypes.DEFAULT_TYPE) -> str:
     data = context.user_data
     lines = [
@@ -70,12 +75,18 @@ def confirmation_text(context: ContextTypes.DEFAULT_TYPE) -> str:
         ("medicine", "💊 Препарат"),
         ("dosage", "💉 Дозировка"),
         ("quantity", "📦 Количество"),
-        ("content_text", "📝 Информация"),
-        ("attachment_label", "📎 Вложение"),
-        ("location", "🌍 Страна и город"),
     ]:
         if data.get(key):
             lines.append(f"{label}: {data[key]}")
+    if data.get("content_text"):
+        content = data["content_text"]
+        if data.get("request_type") == "Список препаратов":
+            content = _numbered_lines(content)
+        lines.append(f"📝 Информация:\n{content}")
+    if data.get("attachment_label"):
+        lines.append(f"📎 Вложения: {data['attachment_label']}")
+    if data.get("location"):
+        lines.append(f"🌍 Страна и город: {data['location']}")
     lines += ["", "Всё указано верно?"]
     return "\n".join(lines)
 
@@ -84,7 +95,7 @@ def admin_card_html(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     data = context.user_data
     request_id = data.get("request_id") or make_request_id(update.effective_user.id)
     lines = [
-        "📩 <b>Pharma.Pro • Новый запрос</b>",
+        "📩 <b>НОВЫЙ ЗАПРОС PHARMA.PRO</b>",
         f"🔢 <b>Номер:</b> <code>{safe(request_id)}</code>",
         "",
         f"📋 <b>Тип:</b> {safe(data.get('request_type'), 'Запрос')}",
@@ -97,10 +108,16 @@ def admin_card_html(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
         ("medicine", "💊 <b>Препарат:</b>"),
         ("dosage", "💉 <b>Дозировка:</b>"),
         ("quantity", "📦 <b>Количество:</b>"),
-        ("content_text", "📝 <b>Информация:</b>"),
-        ("attachment_label", "📎 <b>Вложение:</b>"),
-        ("location", "🌍 <b>Страна и город:</b>"),
     ]:
         if data.get(key):
             lines.append(f"{label} {safe(data.get(key))}")
+    if data.get("content_text"):
+        content = data["content_text"]
+        if data.get("request_type") == "Список препаратов":
+            content = _numbered_lines(content)
+        lines.append(f"📝 <b>Информация:</b>\n{safe(content)}")
+    if data.get("attachment_label"):
+        lines.append(f"📎 <b>Вложения:</b> {safe(data.get('attachment_label'))}")
+    if data.get("location"):
+        lines.append(f"🌍 <b>Страна и город:</b> {safe(data.get('location'))}")
     return "\n".join(lines)
