@@ -20,6 +20,7 @@ def reset_for_request(update, context, request_type):
         source=source,
         request_type=request_type,
         request_id=make_request_id(update.effective_user.id),
+        attachments=[],
     )
 
 
@@ -27,6 +28,16 @@ async def begin_single(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reset_for_request(update, context, "Один препарат")
     await update.message.reply_text(
         "Напишите полное название препарата:",
+        reply_markup=CANCEL_KEYBOARD,
+    )
+    return SINGLE_NAME
+
+
+async def wrong_single_name_type(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Здесь нужно написать название препарата текстом.\n\n"
+        "Если хотите отправить фотографию упаковки, рецепт, список или файл — "
+        "нажмите «📷 Отправить рецепт или список».",
         reply_markup=CANCEL_KEYBOARD,
     )
     return SINGLE_NAME
@@ -62,8 +73,8 @@ async def begin_list(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update,
         context,
         "Список препаратов",
-        "Отправьте весь список одним сообщением.\n\n"
-        "Можно написать текстом, прислать фотографию или документ.",
+        "Отправьте весь список одним сообщением или несколькими фотографиями.\n\n"
+        "Можно написать текстом, прислать фотографии или документ.",
     )
 
 
@@ -72,8 +83,8 @@ async def begin_analog(update: Update, context: ContextTypes.DEFAULT_TYPE):
         update,
         context,
         "Подбор турецкого аналога",
-        "Отправьте название одного или нескольких препаратов, "
-        "фотографию упаковки, рецепта или документ.\n\n"
+        "Отправьте название одного или нескольких препаратов, фотографию упаковки, "
+        "рецепта или документ. Можно отправить несколько фотографий.\n\n"
         "По возможности укажите дозировку и форму выпуска.",
     )
 
@@ -83,7 +94,8 @@ async def begin_photo_or_list(update: Update, context: ContextTypes.DEFAULT_TYPE
         update,
         context,
         "Фото рецепта или список",
-        "Отправьте информацию текстом, фотографией или документом.",
+        "Отправьте информацию текстом, фотографией или документом. "
+        "Можно отправить несколько фотографий подряд.",
     )
 
 
@@ -93,27 +105,50 @@ async def begin_flexible(update, context, request_type, prompt):
     return FLEXIBLE_CONTENT
 
 
+def add_attachment(message, context):
+    attachments = context.user_data.setdefault("attachments", [])
+    if message.photo:
+        attachments.append({
+            "type": "photo",
+            "file_id": message.photo[-1].file_id,
+            "label": "Фотография",
+        })
+    elif message.document:
+        filename = message.document.file_name or "без названия"
+        attachments.append({
+            "type": "document",
+            "file_id": message.document.file_id,
+            "label": f"Документ: {filename}",
+        })
+    if message.caption:
+        caption = message.caption.strip()
+        if caption:
+            previous = context.user_data.get("content_text")
+            context.user_data["content_text"] = f"{previous}\n{caption}" if previous else caption
+
+
+def update_attachment_label(context):
+    attachments = context.user_data.get("attachments", [])
+    if not attachments:
+        context.user_data.pop("attachment_label", None)
+        return
+    photos = sum(1 for item in attachments if item["type"] == "photo")
+    documents = sum(1 for item in attachments if item["type"] == "document")
+    parts = []
+    if photos:
+        parts.append(f"фото: {photos}")
+    if documents:
+        parts.append(f"документов: {documents}")
+    context.user_data["attachment_label"] = ", ".join(parts)
+
+
 async def receive_flexible_content(update: Update, context: ContextTypes.DEFAULT_TYPE):
     message = update.message
     if message.text:
         context.user_data["content_text"] = message.text.strip()
-    elif message.photo:
-        context.user_data.update(
-            attachment_type="photo",
-            attachment_file_id=message.photo[-1].file_id,
-            attachment_label="Фотография",
-        )
-        if message.caption:
-            context.user_data["content_text"] = message.caption.strip()
-    elif message.document:
-        filename = message.document.file_name or "без названия"
-        context.user_data.update(
-            attachment_type="document",
-            attachment_file_id=message.document.file_id,
-            attachment_label=f"Документ: {filename}",
-        )
-        if message.caption:
-            context.user_data["content_text"] = message.caption.strip()
+    elif message.photo or message.document:
+        add_attachment(message, context)
+        update_attachment_label(context)
     else:
         await message.reply_text(
             "Отправьте текст, фотографию или документ.",
@@ -124,9 +159,23 @@ async def receive_flexible_content(update: Update, context: ContextTypes.DEFAULT
     return LOCATION
 
 
+async def receive_more_attachment(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    add_attachment(update.message, context)
+    update_attachment_label(context)
+    count = len(context.user_data.get("attachments", []))
+    await update.message.reply_text(
+        f"✅ Вложение добавлено. Всего вложений: {count}.\n\n"
+        "Можете отправить ещё или укажите страну и город получения.",
+        reply_markup=CANCEL_KEYBOARD,
+    )
+    return LOCATION
+
+
 async def ask_location(update: Update):
     await update.message.reply_text(
-        "Укажите страну и город получения.\n\nНапример: Россия, Москва.",
+        "Укажите страну и город получения.\n\n"
+        "Если нужно, перед ответом можете отправить ещё фотографии.\n"
+        "Например: Россия, Москва.",
         reply_markup=CANCEL_KEYBOARD,
     )
 
@@ -159,19 +208,29 @@ async def send_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
             parse_mode="HTML",
             disable_web_page_preview=True,
         )
-        file_id = context.user_data.get("attachment_file_id")
-        attachment_type = context.user_data.get("attachment_type")
-        caption = (
+        attachments = context.user_data.get("attachments", [])
+        base_caption = (
             "📎 Вложение к запросу\n"
             f"Номер: {context.user_data.get('request_id', 'не указан')}\n"
             f"Тип: {context.user_data.get('request_type', 'Запрос')}\n"
             f"Имя: {update.effective_user.full_name}\n"
             f"Telegram ID: {update.effective_user.id}"
         )
-        if file_id and attachment_type == "photo":
-            await context.bot.send_photo(chat_id=ADMIN_CHAT_ID, photo=file_id, caption=caption)
-        elif file_id and attachment_type == "document":
-            await context.bot.send_document(chat_id=ADMIN_CHAT_ID, document=file_id, caption=caption)
+        total = len(attachments)
+        for index, item in enumerate(attachments, start=1):
+            caption = f"{base_caption}\nВложение: {index}/{total}" if total > 1 else base_caption
+            if item["type"] == "photo":
+                await context.bot.send_photo(
+                    chat_id=ADMIN_CHAT_ID,
+                    photo=item["file_id"],
+                    caption=caption,
+                )
+            elif item["type"] == "document":
+                await context.bot.send_document(
+                    chat_id=ADMIN_CHAT_ID,
+                    document=item["file_id"],
+                    caption=caption,
+                )
 
         await update.message.reply_text(
             REQUEST_ACCEPTED_TEXT,

@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config import ADMIN_CHAT_ID
-from keyboards import MAIN_KEYBOARD, SEARCH_KEYBOARD
+from keyboards import CANCEL_KEYBOARD, MAIN_KEYBOARD, SEARCH_KEYBOARD
 from messages import HOW_IT_WORKS_TEXT, WELCOME_TEXT
 from utils import clear_request_keep_source, get_source_name, safe, user_details_html
 
@@ -12,7 +12,9 @@ logger = logging.getLogger(__name__)
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["source"] = get_source_name(context)
+    source = get_source_name(context)
+    context.user_data.clear()
+    context.user_data["source"] = source
     user = update.effective_user
     await update.message.reply_text(
         WELCOME_TEXT.format(first_name=user.first_name or ""),
@@ -26,10 +28,12 @@ async def start_and_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_search_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    clear_request_keep_source(context)
     await update.message.reply_text(
         "Что вы хотите найти?",
         reply_markup=SEARCH_KEYBOARD,
     )
+    return ConversationHandler.END
 
 
 async def return_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -39,11 +43,15 @@ async def return_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def how_it_works(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    clear_request_keep_source(context)
     await update.message.reply_text(HOW_IT_WORKS_TEXT, reply_markup=MAIN_KEYBOARD)
+    return ConversationHandler.END
 
 
 async def contact_operator(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    source = safe(context.user_data.get("source", "Telegram-бот"))
+    source_value = context.user_data.get("source", "Telegram-бот")
+    clear_request_keep_source(context)
+    source = safe(source_value)
     text = (
         "💬 <b>ПРОСЬБА СВЯЗАТЬСЯ</b>\n\n"
         f"{user_details_html(update)}\n"
@@ -66,6 +74,7 @@ async def contact_operator(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "⚠️ Не удалось отправить сообщение. Попробуйте немного позже.",
             reply_markup=MAIN_KEYBOARD,
         )
+    return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -86,4 +95,11 @@ async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Чтобы оформить запрос, выберите действие с помощью кнопок ниже.",
         reply_markup=MAIN_KEYBOARD,
+    )
+
+
+async def unknown_in_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(
+        "Не удалось распознать этот ответ. Ответьте на текущий вопрос или нажмите «❌ Отменить запрос».",
+        reply_markup=CANCEL_KEYBOARD,
     )
