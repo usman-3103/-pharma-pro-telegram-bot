@@ -7,13 +7,13 @@ from telegram.ext import Application, CommandHandler, ConversationHandler, Messa
 
 from config import BOT_TOKEN
 from handlers.common import (
-    cancel, contact_operator, help_command, how_it_works,
+    cancel, contact_operator, help_command, how_it_works, receive_shared_contact,
     return_to_main, show_search_menu, start, start_and_end, unknown_in_request, unknown_message,
 )
 from handlers.requests import (
-    CONFIRM, FLEXIBLE_CONTENT, LOCATION, SINGLE_DOSAGE, SINGLE_NAME, SINGLE_QUANTITY,
+    CONFIRM, CONTACT, FLEXIBLE_CONTENT, LOCATION, SINGLE_DOSAGE, SINGLE_NAME, SINGLE_QUANTITY,
     begin_analog, begin_list, begin_photo_or_list, begin_single,
-    receive_flexible_content, receive_location, receive_more_attachment,
+    receive_flexible_content, receive_location, receive_more_attachment, receive_request_contact,
     receive_single_dosage, receive_single_name, receive_single_quantity,
     restart_request, send_request, wrong_single_name_type,
 )
@@ -82,6 +82,10 @@ def build_request_conversation():
                 MessageHandler(filters.Regex(r"^✅ Отправить запрос$"), send_request),
                 MessageHandler(filters.Regex(r"^✏️ Заполнить заново$"), restart_request),
             ],
+            CONTACT: [
+                MessageHandler(filters.CONTACT, receive_request_contact),
+                MessageHandler(filters.Regex(r"^↩️ Вернуться в меню$"), return_to_main),
+            ],
         },
         fallbacks=fallbacks,
         allow_reentry=True,
@@ -104,6 +108,7 @@ def main():
     app.add_handler(MessageHandler(filters.Regex(r"^↩️ Вернуться в меню$"), return_to_main))
     app.add_handler(MessageHandler(filters.Regex(r"^ℹ️ Как это работает$"), how_it_works))
     app.add_handler(MessageHandler(filters.Regex(r"^💬 Связаться с оператором$"), contact_operator))
+    app.add_handler(MessageHandler(filters.CONTACT, receive_shared_contact))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
     app.add_error_handler(error_handler)
 

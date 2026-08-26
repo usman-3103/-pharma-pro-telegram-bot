@@ -1,4 +1,4 @@
-from telegram import ReplyKeyboardMarkup
+from telegram import KeyboardButton, ReplyKeyboardMarkup
 
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
@@ -22,14 +22,28 @@ SEARCH_KEYBOARD = ReplyKeyboardMarkup(
 )
 
 CANCEL_KEYBOARD = ReplyKeyboardMarkup(
-    [["❌ Отменить запрос"]],
+    [
+        ["💬 Связаться с оператором"],
+        ["❌ Отменить запрос"],
+    ],
     resize_keyboard=True,
 )
 
 CONFIRM_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["✅ Отправить запрос"],
+        ["💬 Связаться с оператором"],
         ["✏️ Заполнить заново", "❌ Отменить запрос"],
     ],
     resize_keyboard=True,
+)
+
+CONTACT_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        [KeyboardButton("📱 Поделиться контактом", request_contact=True)],
+        ["↩️ Вернуться в меню"],
+    ],
+    resize_keyboard=True,
+    one_time_keyboard=True,
+    input_field_placeholder="Поделитесь контактом",
 )

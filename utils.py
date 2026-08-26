@@ -42,21 +42,32 @@ def make_request_id(user_id: int) -> str:
     return f"{now:%y%m%d%H%M%S}-{str(user_id)[-4:]}"
 
 
-def user_details_html(update: Update) -> str:
+def user_details_html(update: Update, context: ContextTypes.DEFAULT_TYPE | None = None) -> str:
     user = update.effective_user
     full_name = escape(user.full_name or "Не указано")
+    phone = None
+    if context is not None:
+        phone = context.user_data.get("contact_phone")
+
     if user.username:
         username = escape(f"@{user.username}")
-        profile_url = f"https://t.me/{user.username}"
+        profile_line = (
+            f'👁 <b>Профиль:</b> '
+            f'<a href="https://t.me/{user.username}">Открыть профиль</a>'
+        )
     else:
         username = "не указан"
-        profile_url = f"tg://user?id={user.id}"
-    return (
-        f"👤 <b>Имя:</b> {full_name}\n"
-        f"🔗 <b>Username:</b> {username}\n"
-        f'👁 <b>Профиль:</b> <a href="{profile_url}">Открыть профиль</a>\n'
-        f"🆔 <b>Telegram ID:</b> <code>{user.id}</code>"
-    )
+        profile_line = "👁 <b>Профиль:</b> нет публичного username"
+
+    lines = [
+        f"👤 <b>Имя:</b> {full_name}",
+        f"🔗 <b>Username:</b> {username}",
+        profile_line,
+        f"🆔 <b>Telegram ID:</b> <code>{user.id}</code>",
+    ]
+    if phone:
+        lines.append(f"📱 <b>Телефон:</b> {safe(phone)}")
+    return "\n".join(lines)
 
 
 def _numbered_lines(value: str) -> str:
@@ -101,7 +112,7 @@ def admin_card_html(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
         f"📋 <b>Тип:</b> {safe(data.get('request_type'), 'Запрос')}",
         f"📍 <b>Источник:</b> {safe(data.get('source'), 'Telegram-бот')}",
         "",
-        user_details_html(update),
+        user_details_html(update, context),
         "",
     ]
     for key, label in [
