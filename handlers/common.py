@@ -7,6 +7,7 @@ from config import ADMIN_CHAT_ID
 from keyboards import CANCEL_KEYBOARD, CONTACT_KEYBOARD, MAIN_KEYBOARD, SEARCH_KEYBOARD
 from messages import HOW_IT_WORKS_TEXT, WELCOME_TEXT
 from utils import clear_request_keep_source, get_source_name, safe, user_details_html
+from stats import EVENT_OPERATOR, EVENT_START, build_stats_report, get_last_source, record_event
 
 logger = logging.getLogger(__name__)
 
@@ -27,12 +28,15 @@ async def _ask_for_contact(update: Update, context: ContextTypes.DEFAULT_TYPE, p
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
     source = get_source_name(context)
+    if not context.args and source == "Telegram-бот":
+        source = get_last_source(user.id) or source
     context.user_data.clear()
     context.user_data["source"] = source
-    user = update.effective_user
+    record_event(user.id, EVENT_START, source)
     await update.message.reply_text(
-        WELCOME_TEXT.format(first_name=user.first_name or ""),
+        WELCOME_TEXT,
         reply_markup=MAIN_KEYBOARD,
     )
 
@@ -43,25 +47,30 @@ async def start_and_end(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def show_search_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
     await update.message.reply_text("Что вы хотите найти?", reply_markup=SEARCH_KEYBOARD)
     return ConversationHandler.END
 
 
 async def return_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
     await update.message.reply_text("Главное меню:", reply_markup=MAIN_KEYBOARD)
     return ConversationHandler.END
 
 
 async def how_it_works(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
     await update.message.reply_text(HOW_IT_WORKS_TEXT, reply_markup=MAIN_KEYBOARD)
     return ConversationHandler.END
 
 
 async def _send_operator_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    source = safe(context.user_data.get("source", "Telegram-бот"))
+    raw_source = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
+    context.user_data["source"] = raw_source
+    source = safe(raw_source)
     text = (
         "💬 <b>ПРОСЬБА СВЯЗАТЬСЯ</b>\n\n"
         f"{user_details_html(update, context)}\n"
@@ -73,10 +82,11 @@ async def _send_operator_request(update: Update, context: ContextTypes.DEFAULT_T
         parse_mode="HTML",
         disable_web_page_preview=True,
     )
+    record_event(update.effective_user.id, EVENT_OPERATOR, raw_source)
 
 
 async def contact_operator(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    source = context.user_data.get("source", "Telegram-бот")
+    source = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
     context.user_data["source"] = source
 
@@ -140,6 +150,7 @@ async def receive_shared_contact(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
     await update.message.reply_text("Запрос отменён.", reply_markup=MAIN_KEYBOARD)
     return ConversationHandler.END
@@ -166,3 +177,10 @@ async def unknown_in_request(update: Update, context: ContextTypes.DEFAULT_TYPE)
         "нажмите «💬 Связаться с оператором» или «❌ Отменить запрос».",
         reply_markup=CANCEL_KEYBOARD,
     )
+
+
+async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_user.id != ADMIN_CHAT_ID:
+        await update.message.reply_text("Команда недоступна.")
+        return
+    await update.message.reply_text(build_stats_report())

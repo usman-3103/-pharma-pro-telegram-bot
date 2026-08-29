@@ -11,7 +11,7 @@ class HealthCheckHandler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header("Content-Type", "text/plain; charset=utf-8")
         self.end_headers()
-        self.wfile.write("Pharma.Pro bot is running".encode("utf-8"))
+        self.wfile.write("Pharma Pro bot is running".encode("utf-8"))
 
     def log_message(self, format, *args):
         return

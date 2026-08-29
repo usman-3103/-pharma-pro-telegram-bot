@@ -8,7 +8,7 @@ from telegram.ext import Application, CommandHandler, ConversationHandler, Messa
 from config import BOT_TOKEN
 from handlers.common import (
     cancel, contact_operator, help_command, how_it_works, receive_shared_contact,
-    return_to_main, show_search_menu, start, start_and_end, unknown_in_request, unknown_message,
+    return_to_main, show_search_menu, start, start_and_end, stats_command, unknown_in_request, unknown_message,
 )
 from handlers.requests import (
     CONFIRM, CONTACT, FLEXIBLE_CONTENT, LOCATION, SINGLE_DOSAGE, SINGLE_NAME, SINGLE_QUANTITY,
@@ -18,6 +18,7 @@ from handlers.requests import (
     restart_request, send_request, wrong_single_name_type,
 )
 from health import run_health_server
+from stats import init_stats_db
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
@@ -97,9 +98,11 @@ def main():
     asyncio.set_event_loop(loop)
 
     threading.Thread(target=run_health_server, daemon=True).start()
+    init_stats_db()
     app = Application.builder().token(BOT_TOKEN).build()
 
     app.add_handler(CommandHandler("start", start))
+    app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(build_request_conversation())
@@ -112,7 +115,7 @@ def main():
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, unknown_message))
     app.add_error_handler(error_handler)
 
-    logger.info("Pharma.Pro Bot final version started")
+    logger.info("Pharma Pro Bot started")
     app.run_polling(allowed_updates=Update.ALL_TYPES, drop_pending_updates=True)
 
 

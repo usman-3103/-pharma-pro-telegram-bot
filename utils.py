@@ -6,11 +6,18 @@ from telegram.ext import ContextTypes
 
 SOURCE_NAMES = {
     "telegram": "Telegram",
-    "telegram_channel": "Telegram-канал Pharma.Pro",
-    "site": "Сайт Pharma.Pro",
-    "website": "Сайт Pharma.Pro",
+    "telegram_channel": "Telegram-канал",
+    "eczane_turkey": "Аптеки Турции",
+    "reviews": "Отзывы",
+    "lekarstva_t": "Лекарства из Турции — Telegram",
+    "reserve": "Резервные Telegram-группы",
+    "reserve_groups": "Резервные Telegram-группы",
+    "site": "Сайт Pharma Pro",
+    "website": "Сайт Pharma Pro",
     "whatsapp": "WhatsApp",
     "max": "MAX",
+    "max_turkish_pharmacy": "MAX — Турецкая аптека",
+    "max_lekarstva_buy": "MAX — Лекарства из Турции купить",
     "advertising": "Реклама",
     "partner": "Рекомендация",
     "qr": "QR-код",
@@ -106,7 +113,7 @@ def admin_card_html(update: Update, context: ContextTypes.DEFAULT_TYPE) -> str:
     data = context.user_data
     request_id = data.get("request_id") or make_request_id(update.effective_user.id)
     lines = [
-        "📩 <b>НОВЫЙ ЗАПРОС PHARMA.PRO</b>",
+        "📩 <b>НОВЫЙ ЗАПРОС PHARMA PRO</b>",
         f"🔢 <b>Номер:</b> <code>{safe(request_id)}</code>",
         "",
         f"📋 <b>Тип:</b> {safe(data.get('request_type'), 'Запрос')}",

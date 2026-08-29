@@ -7,6 +7,7 @@ from config import ADMIN_CHAT_ID
 from keyboards import CANCEL_KEYBOARD, CONFIRM_KEYBOARD, CONTACT_KEYBOARD, MAIN_KEYBOARD
 from messages import REQUEST_ACCEPTED_TEXT, SEND_ERROR_TEXT
 from utils import admin_card_html, clear_request_keep_source, confirmation_text, make_request_id
+from stats import EVENT_REQUEST, get_last_source, record_event
 
 logger = logging.getLogger(__name__)
 
@@ -14,7 +15,7 @@ logger = logging.getLogger(__name__)
 
 
 def reset_for_request(update, context, request_type):
-    source = context.user_data.get("source", "Telegram-бот")
+    source = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     context.user_data.clear()
     context.user_data.update(
         source=source,
@@ -232,6 +233,11 @@ async def _deliver_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     caption=caption,
                 )
 
+        record_event(
+            update.effective_user.id,
+            EVENT_REQUEST,
+            context.user_data.get("source", "Telegram-бот"),
+        )
         await update.message.reply_text(REQUEST_ACCEPTED_TEXT, reply_markup=MAIN_KEYBOARD)
         clear_request_keep_source(context)
         return ConversationHandler.END

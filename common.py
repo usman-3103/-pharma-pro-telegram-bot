@@ -17,7 +17,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["source"] = source
     user = update.effective_user
     await update.message.reply_text(
-        WELCOME_TEXT.format(first_name=user.first_name or ""),
+        WELCOME_TEXT,
         reply_markup=MAIN_KEYBOARD,
     )
 
