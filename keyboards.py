@@ -1,5 +1,7 @@
 from telegram import KeyboardButton, ReplyKeyboardMarkup
 
+from config import ADMIN_CHAT_ID
+
 MAIN_KEYBOARD = ReplyKeyboardMarkup(
     [
         ["🔍 Найти препарат"],
@@ -9,6 +11,22 @@ MAIN_KEYBOARD = ReplyKeyboardMarkup(
     resize_keyboard=True,
     input_field_placeholder="Выберите действие",
 )
+
+ADMIN_MAIN_KEYBOARD = ReplyKeyboardMarkup(
+    [
+        ["🔍 Найти препарат"],
+        ["📷 Отправить рецепт или список"],
+        ["ℹ️ Как это работает", "💬 Связаться с оператором"],
+        ["📊 Статистика"],
+    ],
+    resize_keyboard=True,
+    input_field_placeholder="Выберите действие",
+)
+
+
+def main_keyboard_for(user_id: int):
+    return ADMIN_MAIN_KEYBOARD if user_id == ADMIN_CHAT_ID else MAIN_KEYBOARD
+
 
 SEARCH_KEYBOARD = ReplyKeyboardMarkup(
     [

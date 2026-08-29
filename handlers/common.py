@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config import ADMIN_CHAT_ID
-from keyboards import CANCEL_KEYBOARD, CONTACT_KEYBOARD, MAIN_KEYBOARD, SEARCH_KEYBOARD
+from keyboards import CANCEL_KEYBOARD, CONTACT_KEYBOARD, SEARCH_KEYBOARD, main_keyboard_for
 from messages import HOW_IT_WORKS_TEXT, WELCOME_TEXT
 from utils import clear_request_keep_source, get_source_name, safe, user_details_html
 from stats import EVENT_OPERATOR, EVENT_START, build_stats_report, get_last_source, record_event
@@ -37,7 +37,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     record_event(user.id, EVENT_START, source)
     await update.message.reply_text(
         WELCOME_TEXT,
-        reply_markup=MAIN_KEYBOARD,
+        reply_markup=main_keyboard_for(update.effective_user.id),
     )
 
 
@@ -56,14 +56,14 @@ async def show_search_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def return_to_main(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
-    await update.message.reply_text("Главное меню:", reply_markup=MAIN_KEYBOARD)
+    await update.message.reply_text("Главное меню:", reply_markup=main_keyboard_for(update.effective_user.id))
     return ConversationHandler.END
 
 
 async def how_it_works(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
-    await update.message.reply_text(HOW_IT_WORKS_TEXT, reply_markup=MAIN_KEYBOARD)
+    await update.message.reply_text(HOW_IT_WORKS_TEXT, reply_markup=main_keyboard_for(update.effective_user.id))
     return ConversationHandler.END
 
 
@@ -98,13 +98,13 @@ async def contact_operator(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await _send_operator_request(update, context)
         await update.message.reply_text(
             "✅ Сообщение отправлено оператору.\nС вами свяжутся в Telegram.",
-            reply_markup=MAIN_KEYBOARD,
+            reply_markup=main_keyboard_for(update.effective_user.id),
         )
     except Exception:
         logger.exception("Failed to send operator request")
         await update.message.reply_text(
             "⚠️ Не удалось отправить сообщение. Попробуйте немного позже.",
-            reply_markup=MAIN_KEYBOARD,
+            reply_markup=main_keyboard_for(update.effective_user.id),
         )
     return ConversationHandler.END
 
@@ -130,14 +130,14 @@ async def receive_shared_contact(update: Update, context: ContextTypes.DEFAULT_T
             await update.message.reply_text(
                 "✅ Контакт получен. Сообщение отправлено оператору.\n"
                 "С вами свяжутся лично в Telegram.",
-                reply_markup=MAIN_KEYBOARD,
+                reply_markup=main_keyboard_for(update.effective_user.id),
             )
         except Exception:
             logger.exception("Failed to send operator request after contact")
             await update.message.reply_text(
                 "⚠️ Контакт получен, но сейчас не удалось уведомить оператора. "
                 "Попробуйте немного позже.",
-                reply_markup=MAIN_KEYBOARD,
+                reply_markup=main_keyboard_for(update.effective_user.id),
             )
         clear_request_keep_source(context)
         return
@@ -145,14 +145,14 @@ async def receive_shared_contact(update: Update, context: ContextTypes.DEFAULT_T
     # Для обычного запроса обработка продолжится внутри ConversationHandler.
     await update.message.reply_text(
         "✅ Контакт сохранён.",
-        reply_markup=MAIN_KEYBOARD,
+        reply_markup=main_keyboard_for(update.effective_user.id),
     )
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["source"] = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
-    await update.message.reply_text("Запрос отменён.", reply_markup=MAIN_KEYBOARD)
+    await update.message.reply_text("Запрос отменён.", reply_markup=main_keyboard_for(update.effective_user.id))
     return ConversationHandler.END
 
 
@@ -160,14 +160,14 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Выберите нужное действие с помощью кнопок.\n\n"
         "Для отмены отправьте /cancel или нажмите «❌ Отменить запрос».",
-        reply_markup=MAIN_KEYBOARD,
+        reply_markup=main_keyboard_for(update.effective_user.id),
     )
 
 
 async def unknown_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         "Чтобы оформить запрос, выберите действие с помощью кнопок ниже.",
-        reply_markup=MAIN_KEYBOARD,
+        reply_markup=main_keyboard_for(update.effective_user.id),
     )
 
 

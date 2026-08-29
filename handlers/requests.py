@@ -4,7 +4,7 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config import ADMIN_CHAT_ID
-from keyboards import CANCEL_KEYBOARD, CONFIRM_KEYBOARD, CONTACT_KEYBOARD, MAIN_KEYBOARD
+from keyboards import CANCEL_KEYBOARD, CONFIRM_KEYBOARD, CONTACT_KEYBOARD, main_keyboard_for
 from messages import REQUEST_ACCEPTED_TEXT, SEND_ERROR_TEXT
 from utils import admin_card_html, clear_request_keep_source, confirmation_text, make_request_id
 from stats import EVENT_REQUEST, get_last_source, record_event
@@ -238,12 +238,12 @@ async def _deliver_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
             EVENT_REQUEST,
             context.user_data.get("source", "Telegram-бот"),
         )
-        await update.message.reply_text(REQUEST_ACCEPTED_TEXT, reply_markup=MAIN_KEYBOARD)
+        await update.message.reply_text(REQUEST_ACCEPTED_TEXT, reply_markup=main_keyboard_for(update.effective_user.id))
         clear_request_keep_source(context)
         return ConversationHandler.END
     except Exception:
         logger.exception("Failed to send request")
-        await update.message.reply_text(SEND_ERROR_TEXT, reply_markup=MAIN_KEYBOARD)
+        await update.message.reply_text(SEND_ERROR_TEXT, reply_markup=main_keyboard_for(update.effective_user.id))
         return CONFIRM
 
 
