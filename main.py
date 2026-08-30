@@ -3,12 +3,12 @@ import asyncio
 import threading
 
 from telegram import Update
-from telegram.ext import Application, CommandHandler, ConversationHandler, MessageHandler, filters
+from telegram.ext import Application, CallbackQueryHandler, CommandHandler, ConversationHandler, MessageHandler, filters
 
 from config import BOT_TOKEN
 from handlers.common import (
     cancel, contact_operator, help_command, how_it_works, receive_shared_contact,
-    return_to_main, show_search_menu, start, start_and_end, stats_command, unknown_in_request, unknown_message,
+    return_to_main, show_search_menu, start, start_and_end, stats_command, stats_period_callback, unknown_in_request, unknown_message,
 )
 from handlers.requests import (
     CONFIRM, CONTACT, FLEXIBLE_CONTENT, LOCATION, SINGLE_DOSAGE, SINGLE_NAME, SINGLE_QUANTITY,
@@ -39,7 +39,7 @@ def build_request_conversation():
     main_action = filters.Regex(
         r"^(🔍 Найти препарат|📷 Отправить рецепт или список|ℹ️ Как это работает|"
         r"💬 Связаться с оператором|↩️ Вернуться в меню|💊 Один препарат|"
-        r"📋 Список препаратов|🔄 Подобрать турецкий аналог)$"
+        r"📋 Список препаратов|🔄 Подобрать турецкий аналог|📊 Статистика)$"
     )
     normal_text = filters.TEXT & ~filters.COMMAND & ~cancel_button & ~main_action
 
@@ -51,6 +51,7 @@ def build_request_conversation():
         MessageHandler(filters.Regex(r"^🔍 Найти препарат$"), show_search_menu),
         MessageHandler(filters.Regex(r"^↩️ Вернуться в меню$"), return_to_main),
         MessageHandler(filters.Regex(r"^ℹ️ Как это работает$"), how_it_works),
+        MessageHandler(filters.Regex(r"^📊 Статистика$"), stats_command),
         CommandHandler("help", help_command),
         MessageHandler(filters.ALL, unknown_in_request),
     ]
@@ -104,6 +105,7 @@ def main():
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("stats", stats_command))
     app.add_handler(MessageHandler(filters.Regex(r"^📊 Статистика$"), stats_command))
+    app.add_handler(CallbackQueryHandler(stats_period_callback, pattern=r"^stats:(today|7d|30d|all)$"))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(CommandHandler("cancel", cancel))
     app.add_handler(build_request_conversation())
