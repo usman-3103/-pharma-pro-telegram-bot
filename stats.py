@@ -158,6 +158,16 @@ def _period_rows(connection: sqlite3.Connection, cutoff: int | None):
     return connection.execute(query, (cutoff,)).fetchall()
 
 
+
+def _display_source_name(source: str) -> str:
+    """Short labels for statistics display only. Stored source values stay unchanged."""
+    labels = {
+        "MAX — Лекарства из Турции купить": "Лекарства · MAX",
+        "MAX — Турецкая аптека": "Турецкая аптека",
+        "Лекарства из Турции — Telegram": "Лекарства · TG",
+    }
+    return labels.get(source, source)
+
 def _format_period(connection: sqlite3.Connection, title: str, period: str) -> list[str]:
     """Compact period view. Recording/database logic is unchanged."""
     rows = _period_rows(connection, _period_cutoff(period))
@@ -204,7 +214,7 @@ def _format_period(connection: sqlite3.Connection, title: str, period: str) -> l
         lines.append("\n📍 Откуда пришли:")
         visible = entrance_sources[:6]
         for source, count in visible:
-            lines.append(f"• {source} — {count}")
+            lines.append(f"• {_display_source_name(source)} — {count}")
         if len(entrance_sources) > 6:
             other_count = sum(count for _, count in entrance_sources[6:])
             lines.append(f"• Ещё {len(entrance_sources) - 6} источн. — {other_count}")
@@ -216,7 +226,7 @@ def _format_period(connection: sqlite3.Connection, title: str, period: str) -> l
     if request_sources:
         lines.append("\n📩 Запросы по источникам:")
         for source, count in request_sources:
-            lines.append(f"• {source} — {count}")
+            lines.append(f"• {_display_source_name(source)} — {count}")
 
     operator_sources = sorted(
         ((source, values[EVENT_OPERATOR]) for source, values in grouped.items() if values[EVENT_OPERATOR] > 0),
@@ -225,7 +235,7 @@ def _format_period(connection: sqlite3.Connection, title: str, period: str) -> l
     if operator_sources:
         lines.append("\n💬 Оператор по источникам:")
         for source, count in operator_sources:
-            lines.append(f"• {source} — {count}")
+            lines.append(f"• {_display_source_name(source)} — {count}")
 
     return lines
 
