@@ -159,6 +159,7 @@ def _period_rows(connection: sqlite3.Connection, cutoff: int | None):
 
 
 def _format_period(connection: sqlite3.Connection, title: str, period: str) -> list[str]:
+    """Compact period view. Recording/database logic is unchanged."""
     rows = _period_rows(connection, _period_cutoff(period))
     grouped: dict[str, dict[str, int]] = {}
     for row in rows:
@@ -170,18 +171,7 @@ def _format_period(connection: sqlite3.Connection, title: str, period: str) -> l
         lines.append("Нет данных.")
         return lines
 
-    ordered = sorted(
-        grouped.items(),
-        key=lambda item: (
-            item[1][EVENT_START],
-            item[1][EVENT_REQUEST],
-            item[1][EVENT_OPERATOR],
-            item[0].lower(),
-        ),
-        reverse=True,
-    )
-
-    # Totals should be unique across all sources, so query separately instead of summing rows.
+    # Totals are unique across all sources, so query separately instead of summing rows.
     cutoff = _period_cutoff(period)
     where = "" if cutoff is None else " WHERE created_at >= ?"
     params = () if cutoff is None else (cutoff,)
@@ -197,16 +187,46 @@ def _format_period(connection: sqlite3.Connection, title: str, period: str) -> l
             event_params = params + (event_type,)
         totals[event_type] = int(connection.execute(query, event_params).fetchone()["n"])
 
-    for source, values in ordered:
-        lines.append(
-            f"• {source} — входы: {values[EVENT_START]} / "
-            f"запросы: {values[EVENT_REQUEST]} / оператор: {values[EVENT_OPERATOR]}"
-        )
-
-    lines.append(
-        f"Итого уникальных — входы: {totals[EVENT_START]} / "
-        f"запросы: {totals[EVENT_REQUEST]} / оператор: {totals[EVENT_OPERATOR]}"
+    lines.extend(
+        [
+            f"👥 Вошли: {totals[EVENT_START]}",
+            f"📩 Отправили запрос: {totals[EVENT_REQUEST]}",
+            f"💬 Связались с оператором: {totals[EVENT_OPERATOR]}",
+        ]
     )
+
+    # Entrance sources: show only the strongest sources and combine the rest.
+    entrance_sources = sorted(
+        ((source, values[EVENT_START]) for source, values in grouped.items() if values[EVENT_START] > 0),
+        key=lambda item: (-item[1], item[0].lower()),
+    )
+    if entrance_sources:
+        lines.append("\n📍 Откуда пришли:")
+        visible = entrance_sources[:6]
+        for source, count in visible:
+            lines.append(f"• {source} — {count}")
+        if len(entrance_sources) > 6:
+            other_count = sum(count for _, count in entrance_sources[6:])
+            lines.append(f"• Ещё {len(entrance_sources) - 6} источн. — {other_count}")
+
+    request_sources = sorted(
+        ((source, values[EVENT_REQUEST]) for source, values in grouped.items() if values[EVENT_REQUEST] > 0),
+        key=lambda item: (-item[1], item[0].lower()),
+    )
+    if request_sources:
+        lines.append("\n📩 Запросы по источникам:")
+        for source, count in request_sources:
+            lines.append(f"• {source} — {count}")
+
+    operator_sources = sorted(
+        ((source, values[EVENT_OPERATOR]) for source, values in grouped.items() if values[EVENT_OPERATOR] > 0),
+        key=lambda item: (-item[1], item[0].lower()),
+    )
+    if operator_sources:
+        lines.append("\n💬 Оператор по источникам:")
+        for source, count in operator_sources:
+            lines.append(f"• {source} — {count}")
+
     return lines
 
 
