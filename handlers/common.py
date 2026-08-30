@@ -1,13 +1,20 @@
 import logging
 
-from telegram import Update
+from telegram import InlineKeyboardButton, InlineKeyboardMarkup, Update
 from telegram.ext import ContextTypes, ConversationHandler
 
-from config import ADMIN_CHAT_ID
+from config import ADMIN_CHAT_ID, TELEGRAM_BUSINESS_CHAT_LINK
 from keyboards import CANCEL_KEYBOARD, CONTACT_KEYBOARD, SEARCH_KEYBOARD, main_keyboard_for
 from messages import HOW_IT_WORKS_TEXT, WELCOME_TEXT
 from utils import clear_request_keep_source, get_source_name, safe, user_details_html
-from stats import EVENT_OPERATOR, EVENT_START, build_stats_report, get_last_source, record_event
+from stats import (
+    EVENT_OPERATOR,
+    EVENT_START,
+    build_stats_period_report,
+    build_stats_summary,
+    get_last_source,
+    record_event,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -86,10 +93,29 @@ async def _send_operator_request(update: Update, context: ContextTypes.DEFAULT_T
 
 
 async def contact_operator(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """Direct operator button: hand the user off to Telegram Business.
+
+    The existing request-submission flow is not changed. If the Business link has
+    not been configured yet, the previous operator-request behavior remains as a
+    safe fallback.
+    """
     source = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     clear_request_keep_source(context)
     context.user_data["source"] = source
 
+    if TELEGRAM_BUSINESS_CHAT_LINK:
+        record_event(update.effective_user.id, EVENT_OPERATOR, source)
+        markup = InlineKeyboardMarkup(
+            [[InlineKeyboardButton("💬 Открыть чат с оператором", url=TELEGRAM_BUSINESS_CHAT_LINK)]]
+        )
+        await update.message.reply_text(
+            "Нажмите кнопку ниже, чтобы открыть чат с оператором Pharma Pro.\n\n"
+            "В Telegram уже будет подготовлено короткое сообщение — вам останется нажать «Отправить».",
+            reply_markup=markup,
+        )
+        return ConversationHandler.END
+
+    # Safe fallback until TELEGRAM_BUSINESS_CHAT_LINK is added in Railway.
     if _needs_contact(update, context):
         await _ask_for_contact(update, context, "operator")
         return ConversationHandler.END
@@ -179,8 +205,39 @@ async def unknown_in_request(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
 
 
+def _stats_markup() -> InlineKeyboardMarkup:
+    return InlineKeyboardMarkup(
+        [
+            [
+                InlineKeyboardButton("Сегодня", callback_data="stats:today"),
+                InlineKeyboardButton("7 дней", callback_data="stats:7d"),
+            ],
+            [
+                InlineKeyboardButton("30 дней", callback_data="stats:30d"),
+                InlineKeyboardButton("Всё время", callback_data="stats:all"),
+            ],
+        ]
+    )
+
+
 async def stats_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_user.id != ADMIN_CHAT_ID:
         await update.message.reply_text("Команда недоступна.")
         return
-    await update.message.reply_text(build_stats_report())
+    await update.message.reply_text(build_stats_summary(), reply_markup=_stats_markup())
+
+
+async def stats_period_callback(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    if not query:
+        return
+    await query.answer()
+    if query.from_user.id != ADMIN_CHAT_ID:
+        await query.answer("Команда недоступна.", show_alert=True)
+        return
+    period = query.data.split(":", 1)[1] if ":" in query.data else "today"
+    try:
+        text = build_stats_period_report(period)
+    except ValueError:
+        text = "⚠️ Неизвестный период статистики."
+    await query.edit_message_text(text=text, reply_markup=_stats_markup())
