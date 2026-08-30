@@ -4,17 +4,18 @@ from telegram import Update
 from telegram.ext import ContextTypes, ConversationHandler
 
 from config import ADMIN_CHAT_ID
-from keyboards import CANCEL_KEYBOARD, CONFIRM_KEYBOARD, MAIN_KEYBOARD
+from keyboards import CANCEL_KEYBOARD, CONFIRM_KEYBOARD, CONTACT_KEYBOARD, main_keyboard_for
 from messages import REQUEST_ACCEPTED_TEXT, SEND_ERROR_TEXT
 from utils import admin_card_html, clear_request_keep_source, confirmation_text, make_request_id
+from stats import EVENT_REQUEST, get_last_source, record_event
 
 logger = logging.getLogger(__name__)
 
-(SINGLE_NAME, SINGLE_DOSAGE, SINGLE_QUANTITY, FLEXIBLE_CONTENT, LOCATION, CONFIRM) = range(6)
+(SINGLE_NAME, SINGLE_DOSAGE, SINGLE_QUANTITY, FLEXIBLE_CONTENT, LOCATION, CONFIRM, CONTACT) = range(7)
 
 
 def reset_for_request(update, context, request_type):
-    source = context.user_data.get("source", "Telegram-бот")
+    source = context.user_data.get("source") or get_last_source(update.effective_user.id) or "Telegram-бот"
     context.user_data.clear()
     context.user_data.update(
         source=source,
@@ -200,7 +201,7 @@ async def restart_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return await begin_photo_or_list(update, context)
 
 
-async def send_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def _deliver_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         await context.bot.send_message(
             chat_id=ADMIN_CHAT_ID,
@@ -232,13 +233,50 @@ async def send_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
                     caption=caption,
                 )
 
-        await update.message.reply_text(
-            REQUEST_ACCEPTED_TEXT,
-            reply_markup=MAIN_KEYBOARD,
+        record_event(
+            update.effective_user.id,
+            EVENT_REQUEST,
+            context.user_data.get("source", "Telegram-бот"),
         )
+        await update.message.reply_text(REQUEST_ACCEPTED_TEXT, reply_markup=main_keyboard_for(update.effective_user.id))
+        clear_request_keep_source(context)
+        return ConversationHandler.END
     except Exception:
         logger.exception("Failed to send request")
-        await update.message.reply_text(SEND_ERROR_TEXT, reply_markup=MAIN_KEYBOARD)
+        await update.message.reply_text(SEND_ERROR_TEXT, reply_markup=main_keyboard_for(update.effective_user.id))
+        return CONFIRM
 
-    clear_request_keep_source(context)
-    return ConversationHandler.END
+
+async def send_request(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.effective_user.username and not context.user_data.get("contact_phone"):
+        context.user_data["pending_contact_purpose"] = "request"
+        await update.message.reply_text(
+            "Перед отправкой нужен способ связи с вами.\n\n"
+            "У вас не указан публичный @username, поэтому оператор может не суметь "
+            "открыть ваш профиль. Нажмите «📱 Поделиться контактом». "
+            "Телефон будет виден только оператору вместе с запросом.",
+            reply_markup=CONTACT_KEYBOARD,
+        )
+        return CONTACT
+    return await _deliver_request(update, context)
+
+
+async def receive_request_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    contact = update.message.contact
+    if not contact:
+        await update.message.reply_text(
+            "Нажмите кнопку «📱 Поделиться контактом» или вернитесь в меню.",
+            reply_markup=CONTACT_KEYBOARD,
+        )
+        return CONTACT
+    if contact.user_id and contact.user_id != update.effective_user.id:
+        await update.message.reply_text(
+            "Пожалуйста, отправьте именно свой контакт кнопкой «📱 Поделиться контактом».",
+            reply_markup=CONTACT_KEYBOARD,
+        )
+        return CONTACT
+
+    context.user_data["contact_phone"] = contact.phone_number
+    context.user_data.pop("pending_contact_purpose", None)
+    return await _deliver_request(update, context)
+

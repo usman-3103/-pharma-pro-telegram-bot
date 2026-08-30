@@ -210,6 +210,62 @@ def _format_period(connection: sqlite3.Connection, title: str, period: str) -> l
     return lines
 
 
+
+def build_stats_summary() -> str:
+    """Compact admin landing screen. Recording/database logic is unchanged."""
+    try:
+        with _connect() as connection:
+            total_users = int(connection.execute("SELECT COUNT(*) AS n FROM users").fetchone()["n"])
+            today_cutoff = _period_cutoff("today")
+            today_users = int(
+                connection.execute(
+                    "SELECT COUNT(DISTINCT user_id) AS n FROM events WHERE created_at >= ?",
+                    (today_cutoff,),
+                ).fetchone()["n"]
+            )
+            today_requests = int(
+                connection.execute(
+                    "SELECT COUNT(DISTINCT user_id) AS n FROM events WHERE created_at >= ? AND event_type = ?",
+                    (today_cutoff, EVENT_REQUEST),
+                ).fetchone()["n"]
+            )
+        return (
+            "📊 СТАТИСТИКА PHARMA PRO\n\n"
+            f"Сегодня вошли: {today_users}\n"
+            f"Сегодня отправили запрос: {today_requests}\n"
+            f"Всего известных пользователей: {total_users}\n\n"
+            "Выберите период для подробностей:"
+        )
+    except Exception:
+        logger.exception("Failed to build compact statistics summary")
+        return (
+            "⚠️ Статистика временно недоступна. "
+            "Проверьте подключение постоянного хранилища Railway."
+        )
+
+
+def build_stats_period_report(period: str) -> str:
+    """Detailed report for one selected period only."""
+    titles = {
+        "today": "Сегодня",
+        "7d": "7 дней",
+        "30d": "30 дней",
+        "all": "За всё время",
+    }
+    if period not in titles:
+        raise ValueError(f"Unsupported stats period: {period}")
+    try:
+        with _connect() as connection:
+            lines = ["📊 СТАТИСТИКА PHARMA PRO", *(_format_period(connection, titles[period], period))]
+            return "\n".join(lines)
+    except Exception:
+        logger.exception("Failed to build period statistics report")
+        return (
+            "⚠️ Статистика временно недоступна. "
+            "Проверьте подключение постоянного хранилища Railway."
+        )
+
+
 def build_stats_report() -> str:
     """Admin report: unique users by source for today, 7 days, 30 days and all time."""
     try:
